@@ -25,7 +25,7 @@
     image-rendering: pixelated;
   }
   #touch-controls {
-    display: none;
+    display: flex;
     width: 100%;
     max-width: 600px;
     padding: 10px 15px;
@@ -71,8 +71,8 @@
   #btn-fire:active, #btn-fire.active {
     background: rgba(255, 255, 51, 0.35);
   }
-  @media (hover: none) and (pointer: coarse) {
-    #touch-controls { display: flex; }
+  @media (hover: hover) and (pointer: fine) {
+    #touch-controls { display: none; }
   }
 </style>
 </head>
@@ -90,7 +90,7 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 
 // ── Auto-scale canvas to fit window ──
-const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+const isTouchDevice = !window.matchMedia('(hover: hover) and (pointer: fine)').matches;
 
 function resizeCanvas() {
   const controlsHeight = isTouchDevice ? 90 : 0;
