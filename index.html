@@ -315,7 +315,7 @@ const player = {
 };
 
 // Bullet
-let bullet = null;
+let bullets = [];
 
 // Keys
 const keys = { left: false, right: false, space: false };
@@ -488,7 +488,7 @@ function createInvaders() {
 function newRound() {
   generateQuestion();
   createInvaders();
-  bullet = null;
+  bullets = [];
   enemyMissiles = [];
   enemyFireTimer = 0;
 }
@@ -588,12 +588,13 @@ function drawPlayer() {
   ctx.shadowBlur = 0;
 }
 
-function drawBullet() {
-  if (!bullet) return;
+function drawBullets() {
   ctx.fillStyle = '#ffff33';
   ctx.shadowColor = '#ffff33';
   ctx.shadowBlur = 6;
-  ctx.fillRect(bullet.x - 2, bullet.y, 4, 14);
+  bullets.forEach(b => {
+    ctx.fillRect(b.x - 2, b.y, 4, 14);
+  });
   ctx.shadowBlur = 0;
 }
 
@@ -785,68 +786,71 @@ function updateInvaders() {
   }
 }
 
-function updateBullet() {
-  if (!bullet) return;
+function updateBullets() {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const bullet = bullets[i];
+    bullet.y -= bullet.speed;
 
-  bullet.y -= bullet.speed;
-
-  if (bullet.y < 0) {
-    bullet = null;
-    return;
-  }
-
-  for (const inv of invaders) {
-    if (!inv.alive) continue;
-
-    const hitHeight = inv.isAnswer ? 60 : 35;
-    const invLeft = inv.x - 20;
-    const invRight = inv.x + 20;
-    const invTop = inv.y;
-    const invBottom = inv.y + hitHeight;
-
-    if (
-      bullet.x >= invLeft &&
-      bullet.x <= invRight &&
-      bullet.y >= invTop &&
-      bullet.y <= invBottom
-    ) {
-      spawnExplosion(inv.x, inv.y + 15, inv.color);
-      playExplosion();
-      inv.alive = false;
-      bullet = null;
-
-      if (!inv.isAnswer) {
-        // Decorative invader — just score points
-        game.score += game.level;
-      } else if (inv.value === currentQuestion.answer) {
-        // Correct answer!
-        const points = 10 * game.level;
-        game.score += points;
-        game.questionsAnswered++;
-        playCorrect();
-        spawnFloatingText(inv.x, inv.y, `+${points}`, '#33ff33');
-        // Explode remaining invaders
-        invaders.forEach(other => {
-          if (other.alive) {
-            spawnExplosion(other.x, other.y + 15, other.color);
-            other.alive = false;
-          }
-        });
-        enemyMissiles = [];
-        // Check for level up or start next round immediately
-        if (game.questionsAnswered >= game.questionsPerLevel) {
-          game.state = 'levelup';
-          game.stateTimer = 90;
-          playLevelUp();
-        } else {
-          newRound();
-        }
-      } else {
-        // Wrong answer — just destroy it, keep trying
-        playWrong();
-      }
-      return;
+    // Off screen
+    if (bullet.y < 0) {
+      bullets.splice(i, 1);
+      continue;
     }
+
+    // Check collision with invaders
+    let hit = false;
+    for (const inv of invaders) {
+      if (!inv.alive) continue;
+
+      const hitHeight = inv.isAnswer ? 60 : 35;
+      const invLeft = inv.x - 20;
+      const invRight = inv.x + 20;
+      const invTop = inv.y;
+      const invBottom = inv.y + hitHeight;
+
+      if (
+        bullet.x >= invLeft &&
+        bullet.x <= invRight &&
+        bullet.y >= invTop &&
+        bullet.y <= invBottom
+      ) {
+        spawnExplosion(inv.x, inv.y + 15, inv.color);
+        playExplosion();
+        inv.alive = false;
+        bullets.splice(i, 1);
+        hit = true;
+
+        if (!inv.isAnswer) {
+          game.score += game.level;
+        } else if (inv.value === currentQuestion.answer) {
+          const points = 10 * game.level;
+          game.score += points;
+          game.questionsAnswered++;
+          playCorrect();
+          spawnFloatingText(inv.x, inv.y, `+${points}`, '#33ff33');
+          invaders.forEach(other => {
+            if (other.alive) {
+              spawnExplosion(other.x, other.y + 15, other.color);
+              other.alive = false;
+            }
+          });
+          bullets = [];
+          enemyMissiles = [];
+          if (game.questionsAnswered >= game.questionsPerLevel) {
+            game.state = 'levelup';
+            game.stateTimer = 90;
+            playLevelUp();
+          } else {
+            newRound();
+          }
+          return;
+        } else {
+          playWrong();
+        }
+        break;
+      }
+    }
+    if (hit) continue;
   }
 }
 
@@ -858,8 +862,8 @@ function updatePlayer() {
     player.x += player.speed;
   }
 
-  if (keys.space && spaceReleased && !bullet) {
-    bullet = { x: player.x, y: player.y - 16, speed: 7 };
+  if (keys.space && spaceReleased) {
+    bullets.push({ x: player.x, y: player.y - 16, speed: 7 });
     spaceReleased = false;
     playShoot();
   }
@@ -955,7 +959,7 @@ function gameLoop(time) {
     }
   } else if (game.state === 'playing') {
     updatePlayer();
-    updateBullet();
+    updateBullets();
     updateInvaders();
     updateEnemyMissiles();
     updateParticles();
@@ -965,7 +969,7 @@ function gameLoop(time) {
     drawQuestion();
     invaders.forEach(inv => drawInvader(inv, time));
     drawPlayer();
-    drawBullet();
+    drawBullets();
     drawEnemyMissiles();
     drawParticles();
     drawFloatingTexts();
