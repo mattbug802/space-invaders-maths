@@ -895,7 +895,7 @@ function drawMenu(time) {
   if (Math.sin(time * 0.005) > 0) {
     ctx.font = '18px "Courier New", monospace';
     ctx.fillStyle = '#ffff33';
-    ctx.fillText('PRESS SPACE TO START', canvas.width / 2, 440);
+    ctx.fillText(isTouchDevice ? 'TAP FIRE TO START' : 'PRESS SPACE TO START', canvas.width / 2, 440);
   }
 
   ctx.font = '14px "Courier New", monospace';
@@ -924,7 +924,7 @@ function drawGameOver(time) {
   if (game.stateTimer <= 0 && Math.sin(time * 0.005) > 0) {
     ctx.font = '16px "Courier New", monospace';
     ctx.fillStyle = '#33ff33';
-    ctx.fillText('PRESS SPACE TO PLAY AGAIN', canvas.width / 2, canvas.height / 2 + 90);
+    ctx.fillText(isTouchDevice ? 'TAP FIRE TO PLAY AGAIN' : 'PRESS SPACE TO PLAY AGAIN', canvas.width / 2, canvas.height / 2 + 90);
   }
 }
 
@@ -1042,7 +1042,6 @@ function setupTouchBtn(id, keyName) {
   const activate = (e) => {
     e.preventDefault();
     keys[keyName] = true;
-    if (keyName === 'space') spaceReleased = false;
     btn.classList.add('active');
     // Resume audio on first touch
     if (audioCtx.state === 'suspended') audioCtx.resume();
