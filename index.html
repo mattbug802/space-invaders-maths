@@ -107,7 +107,6 @@ function resizeCanvas() {
   canvas.style.width = Math.floor(600 * scale) + 'px';
   canvas.style.height = Math.floor(750 * scale) + 'px';
 
-  // Size touch controls to match canvas width
   const controls = document.getElementById('touch-controls');
   if (controls) {
     controls.style.maxWidth = Math.floor(600 * scale) + 'px';
@@ -115,6 +114,130 @@ function resizeCanvas() {
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
+
+// ── Age-based difficulty presets ──
+const agePresets = {
+  '5-8': {
+    label: '5 - 8',
+    lives: 5,
+    invaderBaseSpeed: 0.4,
+    invaderSpeedPerLevel: 0.08,
+    dropAmount: 12,
+    enemyMissiles: false,
+    enemyFireInterval: 999999,
+    enemyMissileSpeed: 0,
+    questionsPerLevel: 5,
+    wrongDropPenalty: 8,
+    wrongSpeedBoost: 0.1,
+    generateQuestion: function(level) {
+      // Simple addition, small numbers
+      const a = Math.floor(Math.random() * 5) + 1;
+      const b = Math.floor(Math.random() * 5) + 1;
+      return { a, b, op: '+', answer: a + b };
+    },
+  },
+  '8-11': {
+    label: '8 - 11',
+    lives: 4,
+    invaderBaseSpeed: 0.6,
+    invaderSpeedPerLevel: 0.12,
+    dropAmount: 15,
+    enemyMissiles: true,
+    enemyFireInterval: 150,
+    enemyMissileSpeed: 2,
+    questionsPerLevel: 5,
+    wrongDropPenalty: 12,
+    wrongSpeedBoost: 0.15,
+    generateQuestion: function(level) {
+      const rand = Math.random();
+      if (rand < 0.4) {
+        const a = Math.floor(Math.random() * 12) + 1;
+        const b = Math.floor(Math.random() * 12) + 1;
+        return { a, b, op: '+', answer: a + b };
+      } else if (rand < 0.7) {
+        const a = Math.floor(Math.random() * 15) + 5;
+        const b = Math.floor(Math.random() * (a - 1)) + 1;
+        return { a, b, op: '-', answer: a - b };
+      } else {
+        const a = Math.floor(Math.random() * 6) + 2;
+        const b = Math.floor(Math.random() * 6) + 2;
+        return { a, b, op: 'x', answer: a * b };
+      }
+    },
+  },
+  '12+': {
+    label: '12+',
+    lives: 3,
+    invaderBaseSpeed: 0.8,
+    invaderSpeedPerLevel: 0.15,
+    dropAmount: 18,
+    enemyMissiles: true,
+    enemyFireInterval: 100,
+    enemyMissileSpeed: 3,
+    questionsPerLevel: 5,
+    wrongDropPenalty: 15,
+    wrongSpeedBoost: 0.2,
+    generateQuestion: function(level) {
+      const rand = Math.random();
+      if (rand < 0.3) {
+        const a = Math.floor(Math.random() * 20) + 5;
+        const b = Math.floor(Math.random() * 20) + 5;
+        return { a, b, op: '+', answer: a + b };
+      } else if (rand < 0.5) {
+        const a = Math.floor(Math.random() * 30) + 10;
+        const b = Math.floor(Math.random() * (a - 1)) + 1;
+        return { a, b, op: '-', answer: a - b };
+      } else if (rand < 0.8) {
+        const a = Math.floor(Math.random() * 10) + 2;
+        const b = Math.floor(Math.random() * 10) + 2;
+        return { a, b, op: 'x', answer: a * b };
+      } else {
+        // Division (ensure clean division)
+        const b = Math.floor(Math.random() * 8) + 2;
+        const answer = Math.floor(Math.random() * 10) + 2;
+        const a = b * answer;
+        return { a, b, op: '÷', answer };
+      }
+    },
+  },
+  'adult': {
+    label: 'ADULT',
+    lives: 3,
+    invaderBaseSpeed: 1.0,
+    invaderSpeedPerLevel: 0.2,
+    dropAmount: 20,
+    enemyMissiles: true,
+    enemyFireInterval: 70,
+    enemyMissileSpeed: 4,
+    questionsPerLevel: 5,
+    wrongDropPenalty: 20,
+    wrongSpeedBoost: 0.3,
+    generateQuestion: function(level) {
+      const rand = Math.random();
+      if (rand < 0.2) {
+        const a = Math.floor(Math.random() * 50) + 10;
+        const b = Math.floor(Math.random() * 50) + 10;
+        return { a, b, op: '+', answer: a + b };
+      } else if (rand < 0.4) {
+        const a = Math.floor(Math.random() * 80) + 20;
+        const b = Math.floor(Math.random() * (a - 1)) + 1;
+        return { a, b, op: '-', answer: a - b };
+      } else if (rand < 0.7) {
+        const a = Math.floor(Math.random() * 12) + 2;
+        const b = Math.floor(Math.random() * 12) + 2;
+        return { a, b, op: 'x', answer: a * b };
+      } else {
+        const b = Math.floor(Math.random() * 10) + 2;
+        const answer = Math.floor(Math.random() * 12) + 2;
+        const a = b * answer;
+        return { a, b, op: '÷', answer };
+      }
+    },
+  },
+};
+
+let selectedAge = null;
+let difficulty = null;
 
 // ── Sound Effects (Web Audio API) ──
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -237,7 +360,6 @@ function playEnemyShoot() {
 
 function playPlayerHit() {
   const t = audioCtx.currentTime;
-  // Noise burst
   const bufferSize = audioCtx.sampleRate * 0.4;
   const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
   const data = buffer.getChannelData(0);
@@ -252,7 +374,6 @@ function playPlayerHit() {
   gain.gain.setValueAtTime(0.15, t);
   gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
   source.start(t);
-  // Low tone
   const osc = audioCtx.createOscillator();
   const g2 = audioCtx.createGain();
   osc.connect(g2);
@@ -281,19 +402,54 @@ function playInvaderStep() {
   osc.stop(audioCtx.currentTime + 0.1);
 }
 
-// Invader step sound timer
 let stepSoundTimer = 0;
-const stepSoundInterval = 30; // frames between step sounds
+const stepSoundInterval = 30;
+
+// ── Leaderboard (localStorage) ──
+const MAX_LEADERBOARD = 10;
+
+function getLeaderboard(ageKey) {
+  try {
+    const data = localStorage.getItem('spacemaths_leaderboard_' + ageKey);
+    return data ? JSON.parse(data) : [];
+  } catch { return []; }
+}
+
+function saveLeaderboard(ageKey, board) {
+  localStorage.setItem('spacemaths_leaderboard_' + ageKey, JSON.stringify(board));
+}
+
+function isHighScore(ageKey, score) {
+  const board = getLeaderboard(ageKey);
+  return board.length < MAX_LEADERBOARD || score > board[board.length - 1].score;
+}
+
+function addHighScore(ageKey, name, score, level) {
+  const board = getLeaderboard(ageKey);
+  board.push({ name, score, level });
+  board.sort((a, b) => b.score - a.score);
+  if (board.length > MAX_LEADERBOARD) board.length = MAX_LEADERBOARD;
+  saveLeaderboard(ageKey, board);
+  return board;
+}
+
+// Initial entry state
+const initials = { chars: ['A','A','A'], pos: 0 };
+
+function resetInitials() {
+  initials.chars = ['A','A','A'];
+  initials.pos = 0;
+}
 
 // ── Game state ──
 const game = {
   score: 0,
   level: 1,
   lives: 3,
-  state: 'menu',
+  state: 'menu', // menu, ageselect, playing, gameover, levelup, entername, leaderboard
   stateTimer: 0,
   questionsAnswered: 0,
-  questionsPerLevel: 5,
+  wrongThisRound: 0,
 };
 
 // Stars
@@ -314,35 +470,28 @@ const player = {
   speed: 5,
 };
 
-// Bullet
 let bullets = [];
 
-// Keys
 const keys = { left: false, right: false, space: false };
 let spaceReleased = true;
 
-// Invaders (answers)
 let invaders = [];
 let invaderDirection = 1;
 let invaderSpeed = 1;
 let invaderDropAmount = 20;
-let invaderY = 0;
 
-// Question
 let currentQuestion = null;
 
-// Enemy missiles
 let enemyMissiles = [];
 let enemyFireTimer = 0;
-const enemyFireInterval = 90; // frames between shots (≈1.5 seconds)
 
-// Floating score texts
 let floatingTexts = [];
-
-// Explosion particles
 let particles = [];
 
-// Invader pixel patterns (8x8 grid, 1 = filled)
+// Age select cursor
+let ageSelectIndex = 0;
+const ageKeys = ['5-8', '8-11', '12+', 'adult'];
+
 const invaderPatterns = [
   [ // Classic crab
     [0,0,1,0,0,0,1,0],
@@ -387,57 +536,30 @@ const invaderPatterns = [
 ];
 
 const invaderColors = ['#33ff33', '#ff6633', '#ff33ff', '#33ffff'];
+const decorativeColor = '#5577cc';
+const decorativeRows = 3;
 
 function generateQuestion() {
-  const level = game.level;
-  let a, b, op, answer;
-
-  if (level <= 2) {
-    a = Math.floor(Math.random() * 10) + 1;
-    b = Math.floor(Math.random() * 10) + 1;
-    op = '+';
-    answer = a + b;
-  } else if (level <= 4) {
-    if (Math.random() < 0.5) {
-      a = Math.floor(Math.random() * 15) + 5;
-      b = Math.floor(Math.random() * (a - 1)) + 1;
-      op = '-';
-      answer = a - b;
-    } else {
-      a = Math.floor(Math.random() * 15) + 1;
-      b = Math.floor(Math.random() * 15) + 1;
-      op = '+';
-      answer = a + b;
-    }
-  } else {
-    a = Math.floor(Math.random() * 10) + 2;
-    b = Math.floor(Math.random() * 10) + 2;
-    op = 'x';
-    answer = a * b;
-  }
-
-  const questionText = `${a} ${op} ${b} = ?`;
+  const q = difficulty.generateQuestion(game.level);
+  const questionText = `${q.a} ${q.op} ${q.b} = ?`;
 
   const wrongAnswers = new Set();
   while (wrongAnswers.size < 3) {
     const offset = Math.floor(Math.random() * 10) + 1;
-    const wrong = answer + (Math.random() < 0.5 ? offset : -offset);
-    if (wrong !== answer && wrong > 0 && !wrongAnswers.has(wrong)) {
+    const wrong = q.answer + (Math.random() < 0.5 ? offset : -offset);
+    if (wrong !== q.answer && wrong > 0 && !wrongAnswers.has(wrong)) {
       wrongAnswers.add(wrong);
     }
   }
 
-  const answers = [answer, ...wrongAnswers];
+  const answers = [q.answer, ...wrongAnswers];
   for (let i = answers.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [answers[i], answers[j]] = [answers[j], answers[i]];
   }
 
-  currentQuestion = { text: questionText, answer, answers };
+  currentQuestion = { text: questionText, answer: q.answer, answers };
 }
-
-const decorativeColor = '#5577cc';
-const decorativeRows = 3; // rows of decoration invaders above the answer row
 
 function createInvaders() {
   invaders = [];
@@ -446,7 +568,6 @@ function createInvaders() {
   const rowSpacing = 50;
   const startY = 120;
 
-  // Decorative rows (no answer value, just scenery)
   for (let row = 0; row < decorativeRows; row++) {
     for (let col = 0; col < cols; col++) {
       invaders.push({
@@ -454,7 +575,7 @@ function createInvaders() {
         y: startY + row * rowSpacing,
         width: 50,
         height: 40,
-        value: null, // no answer — just a decoration invader
+        value: null,
         alive: true,
         color: decorativeColor,
         pattern: invaderPatterns[(row + col) % invaderPatterns.length],
@@ -463,7 +584,6 @@ function createInvaders() {
     }
   }
 
-  // Answer row (bottom row with numbers)
   const answerY = startY + decorativeRows * rowSpacing;
   const answerSpacing = canvas.width / 5;
   for (let i = 0; i < 4; i++) {
@@ -481,7 +601,8 @@ function createInvaders() {
   }
 
   invaderDirection = 1;
-  invaderSpeed = 0.8 + game.level * 0.15;
+  invaderSpeed = difficulty.invaderBaseSpeed + game.level * difficulty.invaderSpeedPerLevel;
+  invaderDropAmount = difficulty.dropAmount;
   stepSoundTimer = 0;
 }
 
@@ -491,6 +612,7 @@ function newRound() {
   bullets = [];
   enemyMissiles = [];
   enemyFireTimer = 0;
+  game.wrongThisRound = 0;
 }
 
 function drawStars(time) {
@@ -532,9 +654,20 @@ function drawQuestion() {
   ctx.shadowBlur = 10;
   ctx.fillText(currentQuestion.text, canvas.width / 2, 95);
   ctx.shadowBlur = 0;
+
+  // Show multiplier hint
+  if (game.wrongThisRound === 0) {
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = '#33ff33';
+    ctx.fillText('FIRST TRY: x3 BONUS!', canvas.width / 2, 112);
+  } else if (game.wrongThisRound === 1) {
+    ctx.font = '12px "Courier New", monospace';
+    ctx.fillStyle = '#ffaa33';
+    ctx.fillText('x2 BONUS', canvas.width / 2, 112);
+  }
 }
 
-function drawInvader(inv, time) {
+function drawInvader(inv) {
   if (!inv.alive) return;
 
   const pixelSize = inv.isAnswer ? 5 : 4;
@@ -561,7 +694,6 @@ function drawInvader(inv, time) {
 
   ctx.shadowBlur = 0;
 
-  // Only draw number labels on answer invaders
   if (inv.isAnswer && inv.value !== null) {
     ctx.textAlign = 'center';
     ctx.font = 'bold 24px "Courier New", monospace';
@@ -607,24 +739,8 @@ function drawParticles() {
   ctx.globalAlpha = 1;
 }
 
-function drawMessage(text, subtext, color) {
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 32px "Courier New", monospace';
-  ctx.fillStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 15;
-  ctx.fillText(text, canvas.width / 2, canvas.height / 2 - 20);
-  ctx.shadowBlur = 0;
-
-  if (subtext) {
-    ctx.font = '16px "Courier New", monospace';
-    ctx.fillStyle = '#aaa';
-    ctx.fillText(subtext, canvas.width / 2, canvas.height / 2 + 20);
-  }
-}
-
 function drawControls() {
-  if (isTouchDevice) return; // touch users have on-screen buttons
+  if (isTouchDevice) return;
   ctx.textAlign = 'center';
   ctx.font = '12px "Courier New", monospace';
   ctx.fillStyle = '#555';
@@ -683,37 +799,33 @@ function drawFloatingTexts() {
 }
 
 function updateEnemyMissiles() {
-  // Fire timer
+  if (!difficulty.enemyMissiles) return;
+
   const aliveInvaders = invaders.filter(inv => inv.alive);
   if (aliveInvaders.length > 0) {
     enemyFireTimer++;
-    // Fire rate increases slightly with level
-    const interval = Math.max(40, enemyFireInterval - game.level * 5);
+    const interval = Math.max(40, difficulty.enemyFireInterval - game.level * 5);
     if (enemyFireTimer >= interval) {
       enemyFireTimer = 0;
-      // Pick a random alive invader to shoot from
       const shooter = aliveInvaders[Math.floor(Math.random() * aliveInvaders.length)];
       enemyMissiles.push({
         x: shooter.x,
         y: shooter.y + 30,
-        speed: 3 + game.level * 0.3,
+        speed: difficulty.enemyMissileSpeed + game.level * 0.2,
       });
       playEnemyShoot();
     }
   }
 
-  // Move missiles
   for (let i = enemyMissiles.length - 1; i >= 0; i--) {
     const m = enemyMissiles[i];
     m.y += m.speed;
 
-    // Off screen
     if (m.y > canvas.height) {
       enemyMissiles.splice(i, 1);
       continue;
     }
 
-    // Hit player
     if (
       m.x >= player.x - 20 &&
       m.x <= player.x + 20 &&
@@ -726,7 +838,8 @@ function updateEnemyMissiles() {
       game.lives--;
       if (game.lives <= 0) {
         game.state = 'gameover';
-        game.stateTimer = 180;
+        game.stateTimer = 120;
+        game.gameoverHandled = false;
         playGameOver();
       }
     }
@@ -738,7 +851,6 @@ function drawEnemyMissiles() {
     ctx.fillStyle = '#ff3333';
     ctx.shadowColor = '#ff3333';
     ctx.shadowBlur = 6;
-    // Draw as a small lightning bolt shape
     ctx.fillRect(m.x - 1, m.y, 3, 5);
     ctx.fillRect(m.x - 2, m.y + 5, 3, 3);
     ctx.fillRect(m.x, m.y + 8, 3, 5);
@@ -752,7 +864,6 @@ function updateInvaders() {
   const aliveInvaders = invaders.filter(inv => inv.alive);
   if (aliveInvaders.length === 0) return;
 
-  // Step sound
   stepSoundTimer++;
   if (stepSoundTimer >= stepSoundInterval) {
     stepSoundTimer = 0;
@@ -791,13 +902,11 @@ function updateBullets() {
     const bullet = bullets[i];
     bullet.y -= bullet.speed;
 
-    // Off screen
     if (bullet.y < 0) {
       bullets.splice(i, 1);
       continue;
     }
 
-    // Check collision with invaders
     let hit = false;
     for (const inv of invaders) {
       if (!inv.alive) continue;
@@ -821,13 +930,18 @@ function updateBullets() {
         hit = true;
 
         if (!inv.isAnswer) {
+          // Decorative invader — small score
           game.score += game.level;
         } else if (inv.value === currentQuestion.answer) {
-          const points = 10 * game.level;
+          // Correct answer! Apply multiplier
+          const multiplier = game.wrongThisRound === 0 ? 3 : game.wrongThisRound === 1 ? 2 : 1;
+          const points = 10 * game.level * multiplier;
           game.score += points;
           game.questionsAnswered++;
           playCorrect();
-          spawnFloatingText(inv.x, inv.y, `+${points}`, '#33ff33');
+          const bonusText = multiplier > 1 ? `+${points} (x${multiplier}!)` : `+${points}`;
+          spawnFloatingText(inv.x, inv.y, bonusText, '#33ff33');
+          // Clear remaining invaders
           invaders.forEach(other => {
             if (other.alive) {
               spawnExplosion(other.x, other.y + 15, other.color);
@@ -836,7 +950,7 @@ function updateBullets() {
           });
           bullets = [];
           enemyMissiles = [];
-          if (game.questionsAnswered >= game.questionsPerLevel) {
+          if (game.questionsAnswered >= difficulty.questionsPerLevel) {
             game.state = 'levelup';
             game.stateTimer = 90;
             playLevelUp();
@@ -845,7 +959,13 @@ function updateBullets() {
           }
           return;
         } else {
+          // Wrong answer — penalty: drop invaders + speed up
           playWrong();
+          game.wrongThisRound++;
+          spawnFloatingText(inv.x, inv.y, 'WRONG!', '#ff3333');
+          const aliveNow = invaders.filter(o => o.alive);
+          aliveNow.forEach(o => o.y += difficulty.wrongDropPenalty);
+          invaderSpeed += difficulty.wrongSpeedBoost;
         }
         break;
       }
@@ -869,6 +989,96 @@ function updatePlayer() {
   }
 }
 
+// ── Age Selection Screen ──
+function drawAgeSelect(time) {
+  ctx.textAlign = 'center';
+  ctx.font = 'bold 32px "Courier New", monospace';
+  ctx.fillStyle = '#33ff33';
+  ctx.shadowColor = '#33ff33';
+  ctx.shadowBlur = 15;
+  ctx.fillText('SELECT AGE GROUP', canvas.width / 2, 160);
+  ctx.shadowBlur = 0;
+
+  const options = ageKeys;
+  const startY = 260;
+  const gap = 90;
+
+  for (let i = 0; i < options.length; i++) {
+    const preset = agePresets[options[i]];
+    const y = startY + i * gap;
+    const selected = i === ageSelectIndex;
+
+    // Box
+    const boxW = 260;
+    const boxH = 60;
+    const boxX = canvas.width / 2 - boxW / 2;
+    const boxY = y - boxH / 2;
+
+    if (selected) {
+      ctx.strokeStyle = '#ffff33';
+      ctx.lineWidth = 3;
+      ctx.shadowColor = '#ffff33';
+      ctx.shadowBlur = 10;
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+      ctx.shadowBlur = 0;
+
+      // Pulsing fill
+      const pulse = Math.sin(time * 0.005) * 0.05 + 0.1;
+      ctx.fillStyle = `rgba(255, 255, 51, ${pulse})`;
+      ctx.fillRect(boxX, boxY, boxW, boxH);
+    } else {
+      ctx.strokeStyle = '#336633';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(boxX, boxY, boxW, boxH);
+    }
+
+    // Label
+    ctx.font = 'bold 26px "Courier New", monospace';
+    ctx.fillStyle = selected ? '#ffff33' : '#888';
+    ctx.fillText(preset.label, canvas.width / 2, y + 8);
+  }
+
+  // Instructions
+  ctx.font = '14px "Courier New", monospace';
+  ctx.fillStyle = '#666';
+  if (isTouchDevice) {
+    ctx.fillText('TAP to select', canvas.width / 2, startY + options.length * gap + 20);
+  } else {
+    ctx.fillText('[↑] [↓] Choose    [SPACE] Select', canvas.width / 2, startY + options.length * gap + 20);
+  }
+}
+
+// Handle touch/click on age selection
+function handleAgeSelectClick(canvasX, canvasY) {
+  const options = ageKeys;
+  const startY = 260;
+  const gap = 90;
+  const boxW = 260;
+  const boxH = 60;
+
+  for (let i = 0; i < options.length; i++) {
+    const y = startY + i * gap;
+    const boxX = canvas.width / 2 - boxW / 2;
+    const boxY = y - boxH / 2;
+
+    if (canvasX >= boxX && canvasX <= boxX + boxW && canvasY >= boxY && canvasY <= boxY + boxH) {
+      selectAge(i);
+      return;
+    }
+  }
+}
+
+function selectAge(index) {
+  selectedAge = ageKeys[index];
+  difficulty = agePresets[selectedAge];
+  game.score = 0;
+  game.level = 1;
+  game.lives = difficulty.lives;
+  game.questionsAnswered = 0;
+  game.state = 'playing';
+  newRound();
+}
+
 function drawMenu(time) {
   ctx.textAlign = 'center';
   ctx.font = 'bold 36px "Courier New", monospace';
@@ -879,7 +1089,6 @@ function drawMenu(time) {
   ctx.fillText('INVADERS', canvas.width / 2, 245);
   ctx.shadowBlur = 0;
 
-  // Decorative invader
   const pattern = invaderPatterns[0];
   const pixelSize = 8;
   const offsetX = canvas.width / 2 - (pattern[0].length * pixelSize) / 2;
@@ -899,13 +1108,15 @@ function drawMenu(time) {
   if (Math.sin(time * 0.005) > 0) {
     ctx.font = '18px "Courier New", monospace';
     ctx.fillStyle = '#ffff33';
-    ctx.fillText(isTouchDevice ? 'TAP FIRE TO START' : 'PRESS SPACE TO START', canvas.width / 2, 440);
+    ctx.fillText(isTouchDevice ? 'TAP TO START' : 'PRESS SPACE TO START', canvas.width / 2, 440);
   }
 
   ctx.font = '14px "Courier New", monospace';
   ctx.fillStyle = '#888';
   ctx.fillText('Shoot the correct answer!', canvas.width / 2, 500);
-  ctx.fillText('[←] [→] Move    [SPACE] Shoot', canvas.width / 2, 530);
+  if (!isTouchDevice) {
+    ctx.fillText('[←] [→] Move    [SPACE] Shoot', canvas.width / 2, 530);
+  }
 }
 
 function drawGameOver(time) {
@@ -924,11 +1135,152 @@ function drawGameOver(time) {
   ctx.font = '16px "Courier New", monospace';
   ctx.fillStyle = '#aaa';
   ctx.fillText(`Level ${game.level} reached`, canvas.width / 2, canvas.height / 2 + 45);
+}
 
-  if (game.stateTimer <= 0 && Math.sin(time * 0.005) > 0) {
+// ── Enter Name Screen (classic arcade 3-letter initials) ──
+function drawEnterName(time) {
+  ctx.textAlign = 'center';
+
+  ctx.font = 'bold 28px "Courier New", monospace';
+  ctx.fillStyle = '#ffff33';
+  ctx.shadowColor = '#ffff33';
+  ctx.shadowBlur = 10;
+  ctx.fillText('NEW HIGH SCORE!', canvas.width / 2, 140);
+  ctx.shadowBlur = 0;
+
+  ctx.font = 'bold 40px "Courier New", monospace';
+  ctx.fillStyle = '#33ff33';
+  ctx.fillText(game.score, canvas.width / 2, 195);
+
+  ctx.font = '18px "Courier New", monospace';
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('ENTER YOUR INITIALS', canvas.width / 2, 260);
+
+  // Draw 3 letter slots
+  const slotW = 60;
+  const totalW = slotW * 3 + 20 * 2;
+  const startX = canvas.width / 2 - totalW / 2;
+  const slotY = 300;
+
+  for (let i = 0; i < 3; i++) {
+    const x = startX + i * (slotW + 20);
+    const selected = i === initials.pos;
+
+    // Box
+    ctx.strokeStyle = selected ? '#ffff33' : '#336633';
+    ctx.lineWidth = selected ? 3 : 2;
+    if (selected) {
+      ctx.shadowColor = '#ffff33';
+      ctx.shadowBlur = 8;
+    }
+    ctx.strokeRect(x, slotY, slotW, 70);
+    ctx.shadowBlur = 0;
+
+    // Letter
+    ctx.font = 'bold 44px "Courier New", monospace';
+    ctx.fillStyle = selected ? '#ffff33' : '#33ff33';
+    ctx.fillText(initials.chars[i], x + slotW / 2, slotY + 52);
+
+    // Up/down arrows for selected
+    if (selected && Math.sin(time * 0.008) > -0.3) {
+      ctx.font = '18px "Courier New", monospace';
+      ctx.fillStyle = '#ffff33';
+      ctx.fillText('\u25B2', x + slotW / 2, slotY - 10);
+      ctx.fillText('\u25BC', x + slotW / 2, slotY + 90);
+    }
+  }
+
+  ctx.font = '14px "Courier New", monospace';
+  ctx.fillStyle = '#666';
+  if (isTouchDevice) {
+    ctx.fillText('[←][→] Select letter    [FIRE] Confirm', canvas.width / 2, 440);
+    ctx.fillText('[←][→] also cycles letters', canvas.width / 2, 460);
+  } else {
+    ctx.fillText('[↑][↓] Change letter  [←][→] Move  [SPACE] Confirm', canvas.width / 2, 440);
+  }
+}
+
+// ── Leaderboard Screen ──
+function drawLeaderboard(time) {
+  ctx.textAlign = 'center';
+
+  ctx.font = 'bold 28px "Courier New", monospace';
+  ctx.fillStyle = '#ffff33';
+  ctx.shadowColor = '#ffff33';
+  ctx.shadowBlur = 10;
+  ctx.fillText('HALL OF FAME', canvas.width / 2, 100);
+  ctx.shadowBlur = 0;
+
+  // Show age group
+  ctx.font = '16px "Courier New", monospace';
+  ctx.fillStyle = '#33ff33';
+  ctx.fillText(`[ ${agePresets[selectedAge].label} ]`, canvas.width / 2, 130);
+
+  const board = getLeaderboard(selectedAge);
+  const startY = 175;
+  const rowH = 40;
+
+  // Header
+  ctx.font = '14px "Courier New", monospace';
+  ctx.fillStyle = '#555';
+  ctx.textAlign = 'left';
+  ctx.fillText('RANK', 100, startY);
+  ctx.fillText('NAME', 200, startY);
+  ctx.fillText('SCORE', 330, startY);
+  ctx.fillText('LVL', 460, startY);
+
+  // Divider
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(80, startY + 10);
+  ctx.lineTo(520, startY + 10);
+  ctx.stroke();
+
+  if (board.length === 0) {
+    ctx.textAlign = 'center';
+    ctx.font = '16px "Courier New", monospace';
+    ctx.fillStyle = '#555';
+    ctx.fillText('No scores yet!', canvas.width / 2, startY + 60);
+  }
+
+  for (let i = 0; i < board.length; i++) {
+    const entry = board[i];
+    const y = startY + 20 + (i + 1) * rowH;
+    const isNew = entry.isNew;
+
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px "Courier New", monospace';
+
+    // Highlight new entry
+    if (isNew) {
+      ctx.fillStyle = '#ffff33';
+      const pulse = Math.sin(time * 0.006) * 0.3 + 0.7;
+      ctx.globalAlpha = pulse;
+    } else {
+      ctx.fillStyle = i < 3 ? '#ffff33' : '#aaa';
+      ctx.globalAlpha = 1;
+    }
+
+    // Rank
+    const rank = `${i + 1}.`;
+    ctx.fillText(rank.padStart(3), 100, y);
+    // Name
+    ctx.fillText(entry.name, 200, y);
+    // Score
+    ctx.fillText(String(entry.score).padStart(6), 330, y);
+    // Level
+    ctx.fillText(String(entry.level), 460, y);
+
+    ctx.globalAlpha = 1;
+  }
+
+  // Continue prompt
+  if (Math.sin(time * 0.005) > 0) {
+    ctx.textAlign = 'center';
     ctx.font = '16px "Courier New", monospace';
     ctx.fillStyle = '#33ff33';
-    ctx.fillText(isTouchDevice ? 'TAP FIRE TO PLAY AGAIN' : 'PRESS SPACE TO PLAY AGAIN', canvas.width / 2, canvas.height / 2 + 90);
+    ctx.fillText(isTouchDevice ? 'TAP TO CONTINUE' : 'PRESS SPACE TO CONTINUE', canvas.width / 2, canvas.height - 50);
   }
 }
 
@@ -948,14 +1300,25 @@ function gameLoop(time) {
 
     if (keys.space && spaceReleased) {
       spaceReleased = false;
-      // Resume audio context on user gesture
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      game.score = 0;
-      game.level = 1;
-      game.lives = 3;
-      game.questionsAnswered = 0;
-      game.state = 'playing';
-      newRound();
+      game.state = 'ageselect';
+      ageSelectIndex = 0;
+    }
+  } else if (game.state === 'ageselect') {
+    drawAgeSelect(time);
+
+    // Keyboard navigation
+    if (keys.up && spaceReleased) {
+      spaceReleased = false;
+      ageSelectIndex = (ageSelectIndex - 1 + ageKeys.length) % ageKeys.length;
+    }
+    if (keys.down && spaceReleased) {
+      spaceReleased = false;
+      ageSelectIndex = (ageSelectIndex + 1) % ageKeys.length;
+    }
+    if (keys.space && spaceReleased) {
+      spaceReleased = false;
+      selectAge(ageSelectIndex);
     }
   } else if (game.state === 'playing') {
     updatePlayer();
@@ -967,7 +1330,7 @@ function gameLoop(time) {
 
     drawHUD();
     drawQuestion();
-    invaders.forEach(inv => drawInvader(inv, time));
+    invaders.forEach(inv => drawInvader(inv));
     drawPlayer();
     drawBullets();
     drawEnemyMissiles();
@@ -1010,7 +1373,76 @@ function gameLoop(time) {
 
     drawGameOver(time);
 
-    if (game.stateTimer <= 0 && keys.space && spaceReleased) {
+    // After timer, transition to name entry or leaderboard
+    if (game.stateTimer <= 0 && !game.gameoverHandled) {
+      game.gameoverHandled = true;
+      if (game.score > 0 && isHighScore(selectedAge, game.score)) {
+        resetInitials();
+        game.state = 'entername';
+      } else {
+        game.state = 'leaderboard';
+      }
+    }
+  } else if (game.state === 'entername') {
+    drawEnterName(time);
+
+    // Handle up/down to change letter
+    if (keys.up && spaceReleased) {
+      spaceReleased = false;
+      const c = initials.chars[initials.pos];
+      initials.chars[initials.pos] = c === 'Z' ? 'A' : String.fromCharCode(c.charCodeAt(0) + 1);
+    }
+    if (keys.down && spaceReleased) {
+      spaceReleased = false;
+      const c = initials.chars[initials.pos];
+      initials.chars[initials.pos] = c === 'A' ? 'Z' : String.fromCharCode(c.charCodeAt(0) - 1);
+    }
+    if (keys.left && spaceReleased) {
+      spaceReleased = false;
+      if (isTouchDevice) {
+        // On touch, left/right cycle letters since no up/down buttons
+        const c = initials.chars[initials.pos];
+        initials.chars[initials.pos] = c === 'A' ? 'Z' : String.fromCharCode(c.charCodeAt(0) - 1);
+      } else {
+        if (initials.pos > 0) initials.pos--;
+      }
+    }
+    if (keys.right && spaceReleased) {
+      spaceReleased = false;
+      if (isTouchDevice) {
+        const c = initials.chars[initials.pos];
+        initials.chars[initials.pos] = c === 'Z' ? 'A' : String.fromCharCode(c.charCodeAt(0) + 1);
+      } else {
+        if (initials.pos < 2) initials.pos++;
+      }
+    }
+    // Confirm with space/fire
+    if (keys.space && spaceReleased) {
+      spaceReleased = false;
+      if (isTouchDevice) {
+        // On touch, fire advances position, then confirms on last
+        if (initials.pos < 2) {
+          initials.pos++;
+        } else {
+          const name = initials.chars.join('');
+          const board = addHighScore(selectedAge, name, game.score, game.level);
+          // Mark the new entry
+          board.forEach(e => e.isNew = (e.name === name && e.score === game.score));
+          saveLeaderboard(selectedAge, board);
+          game.state = 'leaderboard';
+        }
+      } else {
+        const name = initials.chars.join('');
+        const board = addHighScore(selectedAge, name, game.score, game.level);
+        board.forEach(e => e.isNew = (e.name === name && e.score === game.score));
+        saveLeaderboard(selectedAge, board);
+        game.state = 'leaderboard';
+      }
+    }
+  } else if (game.state === 'leaderboard') {
+    drawLeaderboard(time);
+
+    if (keys.space && spaceReleased) {
       spaceReleased = false;
       game.state = 'menu';
     }
@@ -1019,10 +1451,12 @@ function gameLoop(time) {
   requestAnimationFrame(gameLoop);
 }
 
-// Input handling
+// ── Input handling ──
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = true;
   if (e.key === 'ArrowRight' || e.key === 'd') keys.right = true;
+  if (e.key === 'ArrowUp') { keys.up = true; e.preventDefault(); }
+  if (e.key === 'ArrowDown') { keys.down = true; e.preventDefault(); }
   if (e.key === ' ') {
     e.preventDefault();
     keys.space = true;
@@ -1032,6 +1466,8 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft' || e.key === 'a') keys.left = false;
   if (e.key === 'ArrowRight' || e.key === 'd') keys.right = false;
+  if (e.key === 'ArrowUp') keys.up = false;
+  if (e.key === 'ArrowDown') keys.down = false;
   if (e.key === ' ') {
     keys.space = false;
     spaceReleased = true;
@@ -1047,7 +1483,6 @@ function setupTouchBtn(id, keyName) {
     e.preventDefault();
     keys[keyName] = true;
     btn.classList.add('active');
-    // Resume audio on first touch
     if (audioCtx.state === 'suspended') audioCtx.resume();
   };
   const deactivate = (e) => {
@@ -1060,7 +1495,6 @@ function setupTouchBtn(id, keyName) {
   btn.addEventListener('touchstart', activate, { passive: false });
   btn.addEventListener('touchend', deactivate, { passive: false });
   btn.addEventListener('touchcancel', deactivate, { passive: false });
-  // Mouse fallback for testing
   btn.addEventListener('mousedown', activate);
   btn.addEventListener('mouseup', deactivate);
   btn.addEventListener('mouseleave', deactivate);
@@ -1069,6 +1503,26 @@ function setupTouchBtn(id, keyName) {
 setupTouchBtn('btn-left', 'left');
 setupTouchBtn('btn-right', 'right');
 setupTouchBtn('btn-fire', 'space');
+
+// Touch/click on canvas for age selection and menu
+canvas.addEventListener('click', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const canvasX = (e.clientX - rect.left) * scaleX;
+  const canvasY = (e.clientY - rect.top) * scaleY;
+
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+
+  if (game.state === 'menu') {
+    game.state = 'ageselect';
+    ageSelectIndex = 0;
+  } else if (game.state === 'ageselect') {
+    handleAgeSelectClick(canvasX, canvasY);
+  } else if (game.state === 'leaderboard') {
+    game.state = 'menu';
+  }
+});
 
 // Start
 requestAnimationFrame(gameLoop);
