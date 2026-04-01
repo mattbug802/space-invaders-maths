@@ -441,12 +441,143 @@ function resetInitials() {
   initials.pos = 0;
 }
 
+// ── Adaptive difficulty ──
+// Skill level starts at the age group's base and adjusts with streaks.
+// Range: 0 (easiest) to 10 (hardest). Each age group sets the starting point.
+const adaptive = {
+  skill: 0,       // current skill level (float)
+  streak: 0,      // positive = consecutive correct, negative = consecutive wrong
+};
+
+function resetAdaptive(ageKey) {
+  const bases = { '5-8': 1, '8-11': 3.5, '12+': 5.5, 'adult': 7.5 };
+  adaptive.skill = bases[ageKey] || 3;
+  adaptive.streak = 0;
+}
+
+function adaptAfterAnswer(correct) {
+  if (correct) {
+    adaptive.streak = Math.max(0, adaptive.streak) + 1;
+    // Ramp up: +0.3 per correct, accelerating on streaks
+    adaptive.skill += 0.3 + (adaptive.streak >= 3 ? 0.2 : 0);
+  } else {
+    adaptive.streak = Math.min(0, adaptive.streak) - 1;
+    // Ease off: -0.2 per wrong
+    adaptive.skill -= 0.2;
+  }
+  adaptive.skill = Math.max(0, Math.min(10, adaptive.skill));
+}
+
+// Generate question based on current adaptive skill level
+function generateAdaptiveQuestion() {
+  const s = adaptive.skill;
+
+  // Build a pool of question generators weighted by skill level
+  // s=0..2: simple add/sub small numbers, easy times tables
+  // s=2..4: add/sub medium, times tables up to 5x5
+  // s=4..6: add/sub larger, times tables up to 10x10, easy division
+  // s=6..8: bigger numbers, all operations
+  // s=8..10: large numbers, harder division
+
+  const rand = Math.random();
+
+  if (s < 2) {
+    // Very easy: addition 1-10, subtraction within 10, 2x/5x/10x tables
+    if (rand < 0.4) {
+      const a = Math.floor(Math.random() * 8) + 1;
+      const b = Math.floor(Math.random() * 8) + 1;
+      return { a, b, op: '+', answer: a + b };
+    } else if (rand < 0.7) {
+      const a = Math.floor(Math.random() * 8) + 2;
+      const b = Math.floor(Math.random() * (a - 1)) + 1;
+      return { a, b, op: '-', answer: a - b };
+    } else {
+      const tables = [2, 5, 10];
+      const a = tables[Math.floor(Math.random() * tables.length)];
+      const b = Math.floor(Math.random() * 5) + 1;
+      return { a, b, op: 'x', answer: a * b };
+    }
+  } else if (s < 4) {
+    // Easy-medium: add/sub up to 20, times tables up to 6x6
+    if (rand < 0.35) {
+      const a = Math.floor(Math.random() * 15) + 3;
+      const b = Math.floor(Math.random() * 12) + 1;
+      return { a, b, op: '+', answer: a + b };
+    } else if (rand < 0.6) {
+      const a = Math.floor(Math.random() * 15) + 5;
+      const b = Math.floor(Math.random() * (a - 1)) + 1;
+      return { a, b, op: '-', answer: a - b };
+    } else {
+      const a = Math.floor(Math.random() * 5) + 2;
+      const b = Math.floor(Math.random() * 5) + 2;
+      return { a, b, op: 'x', answer: a * b };
+    }
+  } else if (s < 6) {
+    // Medium: add/sub up to 50, full times tables, easy division
+    if (rand < 0.25) {
+      const a = Math.floor(Math.random() * 30) + 5;
+      const b = Math.floor(Math.random() * 25) + 5;
+      return { a, b, op: '+', answer: a + b };
+    } else if (rand < 0.45) {
+      const a = Math.floor(Math.random() * 30) + 10;
+      const b = Math.floor(Math.random() * (a - 1)) + 1;
+      return { a, b, op: '-', answer: a - b };
+    } else if (rand < 0.75) {
+      const a = Math.floor(Math.random() * 9) + 2;
+      const b = Math.floor(Math.random() * 9) + 2;
+      return { a, b, op: 'x', answer: a * b };
+    } else {
+      const b = Math.floor(Math.random() * 6) + 2;
+      const answer = Math.floor(Math.random() * 8) + 2;
+      return { a: b * answer, b, op: '÷', answer };
+    }
+  } else if (s < 8) {
+    // Hard: bigger add/sub, times tables 12x12, division
+    if (rand < 0.2) {
+      const a = Math.floor(Math.random() * 50) + 10;
+      const b = Math.floor(Math.random() * 50) + 10;
+      return { a, b, op: '+', answer: a + b };
+    } else if (rand < 0.4) {
+      const a = Math.floor(Math.random() * 60) + 20;
+      const b = Math.floor(Math.random() * (a - 1)) + 1;
+      return { a, b, op: '-', answer: a - b };
+    } else if (rand < 0.7) {
+      const a = Math.floor(Math.random() * 11) + 2;
+      const b = Math.floor(Math.random() * 11) + 2;
+      return { a, b, op: 'x', answer: a * b };
+    } else {
+      const b = Math.floor(Math.random() * 9) + 2;
+      const answer = Math.floor(Math.random() * 10) + 2;
+      return { a: b * answer, b, op: '÷', answer };
+    }
+  } else {
+    // Very hard: large numbers, all ops
+    if (rand < 0.2) {
+      const a = Math.floor(Math.random() * 80) + 20;
+      const b = Math.floor(Math.random() * 80) + 20;
+      return { a, b, op: '+', answer: a + b };
+    } else if (rand < 0.4) {
+      const a = Math.floor(Math.random() * 100) + 30;
+      const b = Math.floor(Math.random() * (a - 1)) + 1;
+      return { a, b, op: '-', answer: a - b };
+    } else if (rand < 0.7) {
+      const a = Math.floor(Math.random() * 12) + 2;
+      const b = Math.floor(Math.random() * 12) + 2;
+      return { a, b, op: 'x', answer: a * b };
+    } else {
+      const b = Math.floor(Math.random() * 11) + 2;
+      const answer = Math.floor(Math.random() * 12) + 2;
+      return { a: b * answer, b, op: '÷', answer };
+    }
+  }
+}
+
 // ── Game state ──
 const game = {
   score: 0,
   level: 1,
   lives: 3,
-  state: 'menu', // menu, ageselect, playing, gameover, levelup, entername, leaderboard
+  state: 'menu',
   stateTimer: 0,
   questionsAnswered: 0,
   wrongThisRound: 0,
@@ -540,7 +671,7 @@ const decorativeColor = '#5577cc';
 const decorativeRows = 3;
 
 function generateQuestion() {
-  const q = difficulty.generateQuestion(game.level);
+  const q = generateAdaptiveQuestion();
   const questionText = `${q.a} ${q.op} ${q.b} = ?`;
 
   const wrongAnswers = new Set();
@@ -938,6 +1069,7 @@ function updateBullets() {
           const points = 10 * game.level * multiplier;
           game.score += points;
           game.questionsAnswered++;
+          adaptAfterAnswer(true);
           playCorrect();
           const bonusText = multiplier > 1 ? `+${points} (x${multiplier}!)` : `+${points}`;
           spawnFloatingText(inv.x, inv.y, bonusText, '#33ff33');
@@ -961,6 +1093,7 @@ function updateBullets() {
         } else {
           // Wrong answer — penalty: drop invaders + speed up
           playWrong();
+          adaptAfterAnswer(false);
           game.wrongThisRound++;
           spawnFloatingText(inv.x, inv.y, 'WRONG!', '#ff3333');
           const aliveNow = invaders.filter(o => o.alive);
@@ -1075,6 +1208,7 @@ function selectAge(index) {
   game.level = 1;
   game.lives = difficulty.lives;
   game.questionsAnswered = 0;
+  resetAdaptive(selectedAge);
   game.state = 'playing';
   newRound();
 }
